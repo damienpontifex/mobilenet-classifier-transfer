@@ -1,4 +1,4 @@
-# %%
+#%%
 import os
 import re
 import glob
@@ -12,7 +12,7 @@ import tensorflowjs as tfjs
 
 l = tf.keras.layers
 
-# %%
+#%%
 parser = ArgumentParser()
 parser.add_argument('--data-directory', default='images')
 parser.add_argument('--batch-size', default=32, type=int)
@@ -22,16 +22,16 @@ args, _ = parser.parse_known_args()
 
 args.data_directory = os.path.expanduser(args.data_directory)
 
-# %%
+#%%
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 
-# %%
+#%%
 image_size = (224,224)
 
-# %%
+#%%
 def make_dataset(path, batch_size=32):
-    classes = [p for p in os.listdir(path) if '.' not in p]
+    classes = [p for p in tf.io.gfile.listdir(path) if '.' not in p]
     class_values = list(range(len(classes)))
 
     log.info('Binary classifier with classes {}'.format(list(zip(classes, class_values))))
@@ -40,14 +40,20 @@ def make_dataset(path, batch_size=32):
     with open('export/idx2class.pkl', 'wb') as f:
         pickle.dump(classes, f)
     
-    table = tf.lookup.StaticHashTable(tf.lookup.KeyValueTensorInitializer(classes, class_values), 0)
+    # Key-Value lookup to convert string labels to integer for label model uses
+    table = tf.lookup.StaticHashTable(
+        tf.lookup.KeyValueTensorInitializer(classes, class_values), 0)
     
+    # List all the files recursively for our dataset
     ds = tf.data.Dataset.list_files(os.path.join(path, '**', '*.jpeg'))
     
     def _path_to_feature(p):
+        # Get the example label name from it's parent folder
         label = tf.strings.split(p, os.sep)[-2]
+        # Conver the string label to integer label
         label_idx = table.lookup(label)
         
+        # Read, decode, resize image for network input
         img = tf.io.read_file(p)
         img = tf.image.decode_jpeg(img)
         img = tf.image.convert_image_dtype(img, tf.float32)
@@ -55,11 +61,17 @@ def make_dataset(path, batch_size=32):
         
         return { 'input_image': img }, label_idx
     
-    ds = ds.map(_path_to_feature).shuffle(1024).batch(batch_size).repeat(None).prefetch(tf.data.experimental.AUTOTUNE)
+    ds = (
+        ds.map(_path_to_feature)
+            .shuffle(1024)
+            .batch(batch_size)
+            .repeat(None)
+            .prefetch(tf.data.experimental.AUTOTUNE)
+    )
     return ds
 
 
-# %%
+#%%
 mobilenet_url = 'https://tfhub.dev/google/tf2-preview/mobilenet_v2/feature_vector/4'
 
 input = l.Input(shape=(*image_size,3), name='input_image')
@@ -69,20 +81,20 @@ logits = l.Dense(units=1, activation=tf.nn.sigmoid, name='prediction')(mobilenet
 
 model = tf.keras.Model(inputs=input, outputs=logits)
 
-# %%
+#%%
 model.summary()
 
-# %%
+#%%
 model.compile(
     optimizer=tf.keras.optimizers.Adam(),
     loss=tf.keras.losses.binary_crossentropy,
     metrics=[tf.keras.metrics.binary_accuracy]
 )
 
-# %%
+#%%
 dataset = make_dataset(os.path.expanduser(args.data_directory), batch_size=args.batch_size)
 
-# %%
+#%%
 tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir='./export/logs')
 checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
     'export/weights.{epoch:02d}-{loss:.2f}.hdf5', monitor='loss', 
@@ -90,7 +102,7 @@ checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
 
 callbacks = [tensorboard_callback, checkpoint_callback]
 
-# %%
+#%%
 initial_epoch = 0
 previous_checkpoint_path = glob.glob('export/weights.*.hdf5')
 if any(previous_checkpoint_path):
@@ -98,7 +110,7 @@ if any(previous_checkpoint_path):
     initial_epoch = int(re.search('export/weights.(\d*)-.*.hdf5', previous_checkpoint_path).group(1))
     log.info('Restoring model from {} and starting at initial epoch of {}'.format(previous_checkpoint_path, initial_epoch))
 
-# %%
+#%%
 model.fit(
     dataset, 
     epochs=args.epochs, 
@@ -107,7 +119,7 @@ model.fit(
     callbacks=callbacks
 )
 
-# %%
+#%%
 tf.saved_model.save(model, 'export/mobilenet_finetuned')
 
 #%%
