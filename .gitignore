@@ -1,0 +1,5 @@
+.DS_Store
+export
+images
+.ipynb_checkpoints
+__pycache__
