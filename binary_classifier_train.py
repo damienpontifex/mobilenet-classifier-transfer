@@ -1,7 +1,10 @@
 # %%
 import os
+import re
+import glob
 import pickle
 from argparse import ArgumentParser
+import logging
 
 import tensorflow as tf
 import tensorflow_hub as hub
@@ -9,6 +12,7 @@ import tensorflowjs as tfjs
 
 l = tf.keras.layers
 
+# %%
 parser = ArgumentParser()
 parser.add_argument('--data-directory', default='images')
 parser.add_argument('--batch-size', default=32, type=int)
@@ -19,14 +23,18 @@ args, _ = parser.parse_known_args()
 args.data_directory = os.path.expanduser(args.data_directory)
 
 # %%
+log = logging.getLogger(__name__)
+log.setLevel(logging.INFO)
+
+# %%
 image_size = (224,224)
 
 # %%
-
 def make_dataset(path, batch_size=32):
-    
     classes = [p for p in os.listdir(path) if '.' not in p]
     class_values = list(range(len(classes)))
+
+    log.info('Binary classifier with classes {}'.format(list(zip(classes, class_values))))
 
     with open('export/idx2class.pkl', 'wb') as f:
         pickle.dump(classes, f)
@@ -53,7 +61,6 @@ def make_dataset(path, batch_size=32):
 # %%
 mobilenet_url = 'https://tfhub.dev/google/tf2-preview/mobilenet_v2/feature_vector/4'
 
-
 input = l.Input(shape=(*image_size,3), name='input_image')
 
 mobilenet = hub.KerasLayer(mobilenet_url)(input)
@@ -75,10 +82,28 @@ model.compile(
 dataset = make_dataset(os.path.expanduser(args.data_directory), batch_size=args.batch_size)
 
 # %%
+tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir='./export/logs')
+checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+    'export/weights.{epoch:02d}-{loss:.2f}.hdf5', monitor='loss', 
+    save_best_only=True, load_weights_on_restart=True)
+
+callbacks = [tensorboard_callback, checkpoint_callback]
+
+# %%
+initial_epoch = 0
+previous_checkpoint_path = glob.glob('export/weights.*.hdf5')
+if any(previous_checkpoint_path):
+    previous_checkpoint_path = sorted(previous_checkpoint_path)[-1]
+    initial_epoch = int(re.search('export/weights.(\d*)-.*.hdf5', previous_checkpoint_path).group(1))
+    log.info('Restoring model from {} and starting at initial epoch of {}'.format(previous_checkpoint_path, initial_epoch))
+
+# %%
 model.fit(
     dataset, 
     epochs=args.epochs, 
     steps_per_epoch=100,
+    initial_epoch=initial_epoch,
+    callbacks=callbacks
 )
 
 # %%
