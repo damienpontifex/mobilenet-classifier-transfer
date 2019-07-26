@@ -36,6 +36,7 @@ def make_dataset(path, batch_size=32):
 
     log.info('Binary classifier with classes {}'.format(list(zip(classes, class_values))))
 
+    os.makedirs('export', exist_ok=True)
     with open('export/idx2class.pkl', 'wb') as f:
         pickle.dump(classes, f)
     
@@ -107,12 +108,7 @@ model.fit(
 )
 
 # %%
-os.makedirs('export', exist_ok=True)
+tf.saved_model.save(model, 'export/mobilenet_finetuned')
 
-model_filename = 'export/mobilenet_finetuned.h5'
-if os.path.isfile(model_filename):
-    os.remove(model_filename)
-model.save(model_filename)
-
-# %%
-tfjs.converters.save_keras_model(model, 'export/tfjs_export')
+#%%
+tfjs.converters.convert_tf_saved_model('export/mobilenet_finetuned', 'export/web_model')
