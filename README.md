@@ -17,3 +17,9 @@ To run inside the TF20 docker container
 ```bash
 bash train.sh
 ```
+
+## Predict
+
+```bash
+bash predict.sh images/cat/cat1.jpg
+```
