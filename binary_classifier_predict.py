@@ -1,4 +1,6 @@
 import os
+import math
+import pickle
 import numpy as np
 from argparse import ArgumentParser
 import tensorflow as tf
@@ -20,5 +22,11 @@ image = tf.image.resize_with_pad(img, 224, 224)
 image_batch = tf.expand_dims(image, axis=0)
 
 prediction = model.predict(image_batch)
-print('Prediction: ', prediction)
+print('Prediction: ', prediction[0][0])
 
+prediction_int_label = int(round(prediction[0][0]))
+
+with open('export/idx2class.pkl', 'rb') as f:
+    idx2class = pickle.load(f)
+
+print('Prediction Class: ', idx2class[prediction_int_label])

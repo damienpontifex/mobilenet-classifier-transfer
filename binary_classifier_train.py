@@ -1,5 +1,6 @@
 # %%
 import os
+import pickle
 from argparse import ArgumentParser
 
 import tensorflow as tf
@@ -26,6 +27,9 @@ def make_dataset(path, batch_size=32):
     
     classes = [p for p in os.listdir(path) if '.' not in p]
     class_values = list(range(len(classes)))
+
+    with open('export/idx2class.pkl', 'wb') as f:
+        pickle.dump(classes, f)
     
     table = tf.lookup.StaticHashTable(tf.lookup.KeyValueTensorInitializer(classes, class_values), 0)
     
