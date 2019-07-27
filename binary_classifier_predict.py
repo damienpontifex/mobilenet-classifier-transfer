@@ -4,14 +4,13 @@ import pickle
 import numpy as np
 from argparse import ArgumentParser
 import tensorflow as tf
-import tensorflow_hub as hub
 
 parser = ArgumentParser()
-parser.add_argument('--image-path')
+parser.add_argument('--image-path', default='images/cat/iu.jpeg')
 
 args = parser.parse_args()
 
-model = tf.keras.models.load_model('export/mobilenet_finetuned.h5', custom_objects={'KerasLayer': hub.KerasLayer})
+model = tf.saved_model.load('export/mobilenet_finetuned')
 
 img_path = os.path.expanduser(args.image_path)
 img = tf.io.read_file(img_path)
@@ -21,7 +20,8 @@ image = tf.image.resize_with_pad(img, 224, 224)
 
 image_batch = tf.expand_dims(image, axis=0)
 
-prediction = model.predict(image_batch)
+prediction = model(image_batch)
+prediction = prediction.numpy()
 print('Prediction: ', prediction[0][0])
 
 prediction_int_label = int(round(prediction[0][0]))
